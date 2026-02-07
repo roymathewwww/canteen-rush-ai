@@ -23,7 +23,7 @@ export default function StudentHome() {
                 <div className="bg-primary text-primary-foreground p-1.5 rounded-sm">
                     <Utensils className="h-5 w-5" />
                 </div>
-                <span className="font-bold tracking-tight text-lg">CANTEEN.AI</span>
+                <span className="font-bold tracking-tight text-lg">Qless</span>
             </div>
             
             <nav className="hidden md:flex items-center gap-6 text-sm font-medium">
@@ -171,7 +171,7 @@ export default function StudentHome() {
       {/* Footer */}
       <footer className="border-t border-border mt-auto bg-zinc-50/50">
         <div className="container mx-auto px-4 py-8 flex flex-col md:flex-row justify-between items-center gap-4 text-sm text-muted-foreground">
-            <p>&copy; 2026 Canteen Rush AI. Campus Infrastructure.</p>
+            <p>&copy; 2026 Qless. Campus Infrastructure.</p>
             <div className="flex gap-6">
                 <Link href="/vendor/dashboard" className="hover:text-foreground transition-colors">Vendor Dashboard</Link>
                 <Link href="#" className="hover:text-foreground transition-colors">System Status</Link>

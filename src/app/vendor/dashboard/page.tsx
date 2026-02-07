@@ -12,8 +12,10 @@ import { cn } from "@/lib/utils"
 import { supabase } from "@/lib/supabase"
 import { Order, OrderItem } from "@/types/database"
 
+
 interface DashboardOrder {
     id: string
+    fullId: string
     items: string[]
     time: string
     state: string
@@ -22,29 +24,21 @@ interface DashboardOrder {
     rawDate: string
 }
 
-// Constants for Mock Fallback
-const MOCK_DASHBOARD_ORDERS: DashboardOrder[] = [
-  { id: "A-52", items: ["Chicken Wrap", "Coke"], time: "10:45", state: "preparing", urgency: "high", complexity: "low", rawDate: new Date().toISOString() },
-  { id: "A-53", items: ["Veg Burger", "Fries"], time: "10:46", state: "preparing", urgency: "med", complexity: "med", rawDate: new Date().toISOString() },
-  { id: "A-54", items: ["Pasta White", "Garlic Bread"], time: "10:48", state: "ordered", urgency: "low", complexity: "high", rawDate: new Date().toISOString() },
-  { id: "A-55", items: ["Cheese Toast", "Coffee"], time: "10:50", state: "ordered", urgency: "low", complexity: "low", rawDate: new Date().toISOString() },
-  { id: "B-12", items: ["Coffee"], time: "10:42", state: "ready", urgency: "none", complexity: "low", rawDate: new Date().toISOString() },
-  { id: "B-10", items: ["Sandwich"], time: "10:40", state: "ready", urgency: "none", complexity: "med", rawDate: new Date().toISOString() },
-]
-
 export default function VendorDashboard() {
   const [orders, setOrders] = React.useState<DashboardOrder[]>([])
   const [loading, setLoading] = React.useState(true)
+  const [errorMsg, setErrorMsg] = React.useState<string | null>(null)
 
   const fetchOrders = React.useCallback(async () => {
-    // Mock Fallback
+    // Check if Supabase client is available
     if (!supabase) {
-        setOrders(MOCK_DASHBOARD_ORDERS)
+        setErrorMsg("Supabase client not initialized. Check .env.local")
         setLoading(false)
         return
     }
 
       try {
+          setErrorMsg(null)
           const { data, error } = await supabase
             .from('orders')
             .select(`
@@ -65,12 +59,12 @@ export default function VendorDashboard() {
 
           if (data) {
               const formattedOrders: DashboardOrder[] = data.map((order: any) => {
-                  const items = order.order_items.map((oi: any) => {
+                  const items = (order.order_items || []).map((oi: any) => {
                       return oi.menu_items?.name || "Unknown Item"
                   })
 
                   // Calculate complexity/urgency based on logic
-                  const hasComplexItem = order.order_items.some((oi: any) => oi.menu_items?.complexity === "high")
+                  const hasComplexItem = (order.order_items || []).some((oi: any) => oi.menu_items?.complexity === "high")
                   const complexity = hasComplexItem ? "high" : "low"
                   
                   // Urgency logic (if waiting > 10 mins)
@@ -90,13 +84,14 @@ export default function VendorDashboard() {
               })
               setOrders(formattedOrders)
           }
-      } catch (error) {
+      } catch (error: any) {
           console.error("Error fetching orders:", error)
-          setOrders(MOCK_DASHBOARD_ORDERS) // Fallback on error
+          setErrorMsg(error.message || "Failed to fetch orders")
       } finally {
           setLoading(false)
       }
   }, [])
+
 
   React.useEffect(() => {
       fetchOrders()
@@ -122,33 +117,37 @@ export default function VendorDashboard() {
     const orderToUpdate = orders.find(o => o.id === id)
     if (!orderToUpdate) return
 
-    // Calculate updated list for UI immediately
+    // Optimistic Update
     if (newState === 'collected') {
          setOrders(prev => prev.filter(o => o.id !== id))
     } else {
          setOrders(prev => prev.map(o => o.id === id ? { ...o, state: newState } : o))
     }
 
-    if (!supabase) {
-        console.log("Mock Status Update:", id, newState)
-        return
-    }
+    if (!supabase) return
 
     try {
-        // Use full UUID if possible, but we sliced it. 
-        // We need to store full ID in the mapped object to be safe.
-        // *Correction*: I added fullId to the interface.
-        
         const { error } = await supabase
             .from('orders')
             .update({ status: newState === 'collected' ? 'completed' : newState })
-            .eq('id', (orderToUpdate as any).fullId) 
+            .eq('id', orderToUpdate.fullId) 
 
         if (error) throw error
     } catch (err) {
         console.error("Failed to update order:", err)
         fetchOrders() // Revert on error
     }
+  }
+
+  // Display Error if any
+  if (errorMsg) {
+      return (
+          <div className="h-screen flex flex-col items-center justify-center p-4 text-center">
+              <h1 className="text-xl font-bold text-red-500 mb-2">Something went wrong</h1>
+              <p className="text-muted-foreground mb-4">{errorMsg}</p>
+              <Button onClick={() => window.location.reload()}>Retry</Button>
+          </div>
+      )
   }
 
   const newOrders = orders.filter(o => o.state === "ordered")

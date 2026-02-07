@@ -83,16 +83,14 @@ export default function OrderPage() {
   
   // Submit Handler
   const handlePlaceOrder = async () => {
-    if (!studentId) {
-        alert("Please enter a Student ID")
-        return
-    }
+    alert("Payment Done!")
+    
+    // Default values if not provided
+    const finalStudentId = studentId || "DEMO_USER"
 
-    // Mock Order placement
+    // Check Supabase connection
     if (!supabase) {
-        const mockOrderId = "MOCK-" + Math.floor(Math.random() * 1000)
-        console.log("Mock Order placed:", mockOrderId)
-        router.push(`/order/status/${mockOrderId}`)
+        alert("Database connection failed. Please check your configuration.")
         return
     }
 
@@ -101,7 +99,7 @@ export default function OrderPage() {
         const { data: orderData, error: orderError } = await supabase
             .from('orders')
             .insert({
-                student_id: studentId,
+                student_id: finalStudentId,
                 vendor_id: "canteen_1", // Hardcoded for now
                 break_slot: breakSlot,
                 order_time: new Date().toISOString(),
@@ -199,7 +197,7 @@ export default function OrderPage() {
                         <Utensils className="h-5 w-5" />
                     </div>
                 </Link>
-                <Link href="/" className="font-bold tracking-tight text-lg hover:text-primary transition-colors">CANTEEN.AI</Link>
+                <Link href="/" className="font-bold tracking-tight text-lg hover:text-primary transition-colors">Qless</Link>
                 <div className="mx-2 h-4 w-px bg-zinc-300 hidden md:block" />
                 <span className="text-sm font-medium text-muted-foreground hidden md:block">Smart Order System</span>
             </div>

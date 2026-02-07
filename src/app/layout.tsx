@@ -15,7 +15,7 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Canteen Rush AI",
+  title: "Qless",
   description: "Campus food pre-order and operational flow control system",
 };
 
