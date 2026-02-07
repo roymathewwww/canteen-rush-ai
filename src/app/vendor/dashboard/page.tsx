@@ -8,27 +8,154 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { TimeDisplay } from "@/components/ui/time-display"
 import { cn } from "@/lib/utils"
+// Import Supabase
+import { supabase } from "@/lib/supabase"
+import { Order, OrderItem } from "@/types/database"
 
-// Mock Vendor Orders
-const ORDERS = [
-  { id: "A-52", items: ["Chicken Wrap", "Coke"], time: "10:45", state: "preparing", urgency: "high", complexity: "low" },
-  { id: "A-53", items: ["Veg Burger", "Fries"], time: "10:46", state: "preparing", urgency: "med", complexity: "med" },
-  { id: "A-54", items: ["Pasta White", "Garlic Bread"], time: "10:48", state: "ordered", urgency: "low", complexity: "high" },
-  { id: "A-55", items: ["Cheese Toast", "Coffee"], time: "10:50", state: "ordered", urgency: "low", complexity: "low" },
-  { id: "B-12", items: ["Coffee"], time: "10:42", state: "ready", urgency: "none", complexity: "low" },
-  { id: "B-10", items: ["Sandwich"], time: "10:40", state: "ready", urgency: "none", complexity: "med" },
+interface DashboardOrder {
+    id: string
+    items: string[]
+    time: string
+    state: string
+    urgency: string
+    complexity: string
+    rawDate: string
+}
+
+// Constants for Mock Fallback
+const MOCK_DASHBOARD_ORDERS: DashboardOrder[] = [
+  { id: "A-52", items: ["Chicken Wrap", "Coke"], time: "10:45", state: "preparing", urgency: "high", complexity: "low", rawDate: new Date().toISOString() },
+  { id: "A-53", items: ["Veg Burger", "Fries"], time: "10:46", state: "preparing", urgency: "med", complexity: "med", rawDate: new Date().toISOString() },
+  { id: "A-54", items: ["Pasta White", "Garlic Bread"], time: "10:48", state: "ordered", urgency: "low", complexity: "high", rawDate: new Date().toISOString() },
+  { id: "A-55", items: ["Cheese Toast", "Coffee"], time: "10:50", state: "ordered", urgency: "low", complexity: "low", rawDate: new Date().toISOString() },
+  { id: "B-12", items: ["Coffee"], time: "10:42", state: "ready", urgency: "none", complexity: "low", rawDate: new Date().toISOString() },
+  { id: "B-10", items: ["Sandwich"], time: "10:40", state: "ready", urgency: "none", complexity: "med", rawDate: new Date().toISOString() },
 ]
 
 export default function VendorDashboard() {
-  const [orders, setOrders] = React.useState(ORDERS)
+  const [orders, setOrders] = React.useState<DashboardOrder[]>([])
+  const [loading, setLoading] = React.useState(true)
 
-  const moveOrder = (id: string, newState: string) => {
-    setOrders(prev => prev.map(o => o.id === id ? { ...o, state: newState } : o))
+  const fetchOrders = React.useCallback(async () => {
+    // Mock Fallback
+    if (!supabase) {
+        setOrders(MOCK_DASHBOARD_ORDERS)
+        setLoading(false)
+        return
+    }
+
+      try {
+          const { data, error } = await supabase
+            .from('orders')
+            .select(`
+                *,
+                order_items (
+                    quantity,
+                    menu_items (
+                        name,
+                        complexity
+                    )
+                )
+            `)
+            .neq('status', 'completed')
+            .neq('status', 'cancelled')
+            .order('created_at', { ascending: true })
+
+          if (error) throw error
+
+          if (data) {
+              const formattedOrders: DashboardOrder[] = data.map((order: any) => {
+                  const items = order.order_items.map((oi: any) => {
+                      return oi.menu_items?.name || "Unknown Item"
+                  })
+
+                  // Calculate complexity/urgency based on logic
+                  const hasComplexItem = order.order_items.some((oi: any) => oi.menu_items?.complexity === "high")
+                  const complexity = hasComplexItem ? "high" : "low"
+                  
+                  // Urgency logic (if waiting > 10 mins)
+                  const waitTime = (new Date().getTime() - new Date(order.created_at).getTime()) / 60000
+                  const urgency = waitTime > 10 ? "high" : waitTime > 5 ? "med" : "low"
+                  
+                  return {
+                      id: order.id.slice(0, 8), // Show short ID
+                      fullId: order.id,
+                      items: items,
+                      time: new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                      state: order.status,
+                      urgency,
+                      complexity,
+                      rawDate: order.created_at
+                  }
+              })
+              setOrders(formattedOrders)
+          }
+      } catch (error) {
+          console.error("Error fetching orders:", error)
+          setOrders(MOCK_DASHBOARD_ORDERS) // Fallback on error
+      } finally {
+          setLoading(false)
+      }
+  }, [])
+
+  React.useEffect(() => {
+      fetchOrders()
+
+      if (!supabase) return
+
+      // Realtime subscription
+      const channel = supabase
+        .channel('public:orders')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, (payload) => {
+            console.log('Change received!', payload)
+            fetchOrders() // Refresh full list for simplicity
+        })
+        .subscribe()
+
+      return () => {
+          supabase.removeChannel(channel)
+      }
+  }, [fetchOrders])
+
+  const moveOrder = async (id: string, newState: string) => {
+    // Optimistic Update
+    const orderToUpdate = orders.find(o => o.id === id)
+    if (!orderToUpdate) return
+
+    // Calculate updated list for UI immediately
+    if (newState === 'collected') {
+         setOrders(prev => prev.filter(o => o.id !== id))
+    } else {
+         setOrders(prev => prev.map(o => o.id === id ? { ...o, state: newState } : o))
+    }
+
+    if (!supabase) {
+        console.log("Mock Status Update:", id, newState)
+        return
+    }
+
+    try {
+        // Use full UUID if possible, but we sliced it. 
+        // We need to store full ID in the mapped object to be safe.
+        // *Correction*: I added fullId to the interface.
+        
+        const { error } = await supabase
+            .from('orders')
+            .update({ status: newState === 'collected' ? 'completed' : newState })
+            .eq('id', (orderToUpdate as any).fullId) 
+
+        if (error) throw error
+    } catch (err) {
+        console.error("Failed to update order:", err)
+        fetchOrders() // Revert on error
+    }
   }
 
   const newOrders = orders.filter(o => o.state === "ordered")
   const prepOrders = orders.filter(o => o.state === "preparing")
   const readyOrders = orders.filter(o => o.state === "ready")
+
+  if (loading) return <div className="h-screen flex items-center justify-center">Loading Kitchen Display...</div>
 
   return (
     <div className="min-h-screen bg-background text-foreground flex font-sans">
@@ -57,7 +184,9 @@ export default function VendorDashboard() {
                     <Badge variant="warning">HIGH RUSH</Badge>
                 </div>
                 <div className="h-8 w-px bg-border" />
-                <span className="font-mono text-xl text-foreground font-bold">10:43:05</span>
+                <span className="font-mono text-xl text-foreground font-bold">
+                    <TimeDisplay />
+                </span>
             </div>
         </header>
 
@@ -141,7 +270,7 @@ export default function VendorDashboard() {
                                 <div className="text-3xl font-mono font-bold text-green-600 mb-1">{order.id}</div>
                                 <div className="text-xs text-muted-foreground">{order.items.join(", ")}</div>
                             </div>
-                            <Button size="icon" variant="ghost" className="h-12 w-12 rounded-full hover:bg-green-100 hover:text-green-700" onClick={() => moveOrder(order.id, "collected")}>
+                            <Button size="icon" variant="ghost" className="h-12 w-12 rounded-full hover:bg-green-100 dark:hover:bg-green-900/50 hover:text-green-700" onClick={() => moveOrder(order.id, "collected")}>
                                 <Check className="h-6 w-6" />
                             </Button>
                         </div>

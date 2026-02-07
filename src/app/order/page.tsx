@@ -11,21 +11,27 @@ import { Separator } from "@/components/ui/separator"
 import { Input } from "@/components/ui/input"
 import { TimeDisplay } from "@/components/ui/time-display"
 import { cn } from "@/lib/utils"
+import { supabase } from "@/lib/supabase"
+import { MenuItem } from "@/types/database"
 
-// Mock Menu Data
+// Categories
 const CATEGORIES = ["All", "Special", "Wraps", "Burgers", "Sandwiches", "Drinks"]
-const MENU_ITEMS = [
-  { id: 1, name: "Chicken Wrap", price: 120, prepTime: 3, complexity: "low", category: "Wraps", desc: "Grilled chicken with fresh veggies." },
-  { id: 2, name: "Veg Burger", price: 90, prepTime: 5, complexity: "med", category: "Burgers", desc: "Crispy patty with cheese slice." },
-  { id: 3, name: "Spicy Paneer Wrap", price: 110, prepTime: 4, complexity: "med", category: "Wraps", desc: "Cottage cheese in spicy marinade." },
-  { id: 4, name: "Cold Coffee", price: 60, prepTime: 2, complexity: "low", category: "Drinks", desc: "Chilled brewed coffee with milk." },
-  { id: 5, name: "Grilled Sandwich", price: 80, prepTime: 6, complexity: "high", category: "Sandwiches", desc: "Bombay style vegetable grill." },
-  { id: 6, name: "Cheese Omelette", price: 50, prepTime: 4, complexity: "low", category: "Special", desc: "Three egg omelette with cheddar." },
-  { id: 7, name: "Masala Chai", price: 20, prepTime: 2, complexity: "low", category: "Drinks", desc: "Hot spiced tea." },
+
+// Constants for Mock Fallback
+const MOCK_MENU_ITEMS: MenuItem[] = [
+  { id: 1, name: "Chicken Wrap", price: 120, prep_time: 3, complexity: "low", category: "Wraps", description: "Grilled chicken with fresh veggies." },
+  { id: 2, name: "Veg Burger", price: 90, prep_time: 5, complexity: "med", category: "Burgers", description: "Crispy patty with cheese slice." },
+  { id: 3, name: "Spicy Paneer Wrap", price: 110, prep_time: 4, complexity: "med", category: "Wraps", description: "Cottage cheese in spicy marinade." },
+  { id: 4, name: "Cold Coffee", price: 60, prep_time: 2, complexity: "low", category: "Drinks", description: "Chilled brewed coffee with milk." },
+  { id: 5, name: "Grilled Sandwich", price: 80, prep_time: 6, complexity: "high", category: "Sandwiches", description: "Bombay style vegetable grill." },
+  { id: 6, name: "Cheese Omelette", price: 50, prep_time: 4, complexity: "low", category: "Special", description: "Three egg omelette with cheddar." },
+  { id: 7, name: "Masala Chai", price: 20, prep_time: 2, complexity: "low", category: "Drinks", description: "Hot spiced tea." },
 ]
 
 export default function OrderPage() {
   const router = useRouter()
+  const [menuItems, setMenuItems] = React.useState<MenuItem[]>([])
+  const [loading, setLoading] = React.useState(true)
   const [cart, setCart] = React.useState<Record<number, number>>({})
   const [pickupTime, setPickupTime] = React.useState("10:45")
   const [activeCategory, setActiveCategory] = React.useState("All")
@@ -36,47 +42,120 @@ export default function OrderPage() {
   const [studentId, setStudentId] = React.useState("")
   const [breakSlot, setBreakSlot] = React.useState("10:45-11:05")
 
+  // Fetch Menu from Supabase
+  React.useEffect(() => {
+    const fetchMenu = async () => {
+      // Mock Data Fallback
+      if (!supabase) {
+        setMenuItems(MOCK_MENU_ITEMS)
+        setLoading(false)
+        return
+      }
+
+      try {
+        const { data, error } = await supabase
+          .from('menu_items')
+          .select('*')
+        
+        if (error) {
+            console.error('Error fetching menu:', error)
+            setMenuItems(MOCK_MENU_ITEMS) // Fallback on error
+        } else if (data) {
+            setMenuItems(data)
+        }
+      } catch (err) {
+          console.error('Unexpected error:', err)
+          setMenuItems(MOCK_MENU_ITEMS)
+      } finally {
+          setLoading(false)
+      }
+    }
+    
+    fetchMenu()
+  }, [])
+
   // Calculate items in cart
   const cartItemCount = Object.values(cart).reduce((a, b) => a + b, 0)
   const cartTotal = Object.entries(cart).reduce((total, [id, qty]) => {
-      const item = MENU_ITEMS.find(i => i.id === Number(id))
+      const item = menuItems.find(i => i.id === Number(id))
       return total + (item ? item.price * qty : 0)
   }, 0)
   
   // Submit Handler
-  const handlePlaceOrder = () => {
-    const orderData = {
-        student_id: studentId || "GUEST",
-        vendor_id: "canteen_1",
-        items: Object.entries(cart).map(([id, qty]) => {
-            const item = MENU_ITEMS.find(i => i.id === Number(id))
-            return { name: item?.name, qty }
-        }),
-        break_slot: breakSlot,
-        order_time: new Date().toLocaleTimeString(),
-        predicted_pickup: pickupTime
+  const handlePlaceOrder = async () => {
+    if (!studentId) {
+        alert("Please enter a Student ID")
+        return
     }
-    
-    console.log("PAYLOAD:", JSON.stringify(orderData, null, 2))
-    router.push('/order/status/A-52')
+
+    // Mock Order placement
+    if (!supabase) {
+        const mockOrderId = "MOCK-" + Math.floor(Math.random() * 1000)
+        console.log("Mock Order placed:", mockOrderId)
+        router.push(`/order/status/${mockOrderId}`)
+        return
+    }
+
+    try {
+        // 1. Create Order
+        const { data: orderData, error: orderError } = await supabase
+            .from('orders')
+            .insert({
+                student_id: studentId,
+                vendor_id: "canteen_1", // Hardcoded for now
+                break_slot: breakSlot,
+                order_time: new Date().toISOString(),
+                status: 'ordered', // Default status
+                predicted_pickup: pickupTime
+            })
+            .select()
+            .single()
+
+        if (orderError) throw orderError
+        if (!orderData) throw new Error("No order data returned")
+
+        // 2. Create Order Items
+        const orderItems = Object.entries(cart).map(([id, qty]) => {
+            const item = menuItems.find(i => i.id === Number(id))
+            return {
+                order_id: orderData.id,
+                menu_item_id: Number(id),
+                quantity: qty,
+                price_at_time: item?.price || 0
+            }
+        })
+
+        const { error: itemsError } = await supabase
+            .from('order_items')
+            .insert(orderItems)
+
+        if (itemsError) throw itemsError
+        
+        console.log("Order placed successfully:", orderData.id)
+        router.push(`/order/status/${orderData.id}`) // Use actual ID from DB
+
+    } catch (error) {
+        console.error("Error placing order:", error)
+        alert("Failed to place order. Please try again.")
+    }
   }
 
   // Filter Items
-  const filteredItems = MENU_ITEMS.filter(item => {
+  const filteredItems = menuItems.filter(item => {
       const matchesCategory = activeCategory === "All" || item.category === activeCategory
       const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase())
       return matchesCategory && matchesSearch
   })
 
-  // Mock Recalculation Effect
+  // Recalculation Effect
   React.useEffect(() => {
     let baseTime = 0
     let complexityPenalty = 0
 
     Object.entries(cart).forEach(([id, quantity]) => {
-      const item = MENU_ITEMS.find(i => i.id === Number(id))
+      const item = menuItems.find(i => i.id === Number(id))
       if (item && quantity > 0) {
-        baseTime += item.prepTime * quantity
+        baseTime += item.prep_time * quantity
         if (item.complexity === "high") complexityPenalty += 2
       }
     })
@@ -84,13 +163,14 @@ export default function OrderPage() {
     // Parallel processing simulation (dividing by 2 chefs)
     const actualPrep = Math.ceil(baseTime / 2) + complexityPenalty
     
-    // Update predicted time (Current time 10:30 + actualPrep)
+    // Update predicted time (Current time + actualPrep)
     const d = new Date()
-    d.setHours(10, 30 + actualPrep, 0)
+    d.setMinutes(d.getMinutes() + actualPrep) // Add prep time to current time
+    const hours = d.getHours().toString().padStart(2, '0')
     const minutes = d.getMinutes().toString().padStart(2, '0')
-    setPickupTime(`10:${minutes}`)
+    setPickupTime(`${hours}:${minutes}`)
 
-  }, [cart])
+  }, [cart, menuItems])
 
   const updateCart = (id: number, delta: number) => {
     setCart(prev => {
@@ -102,6 +182,10 @@ export default function OrderPage() {
       }
       return { ...prev, [id]: next }
     })
+  }
+
+  if (loading) {
+      return <div className="min-h-screen flex items-center justify-center">Loading Menu...</div>
   }
 
   return (
@@ -194,7 +278,7 @@ export default function OrderPage() {
                                         <CardTitle className="text-base">{item.name}</CardTitle>
                                         {item.complexity === "high" && <Badge variant="warning" className="text-[9px] px-1 h-4">SLOW</Badge>}
                                     </div>
-                                    <CardDescription className="text-xs mt-1">{item.desc}</CardDescription>
+                                    <CardDescription className="text-xs mt-1">{item.description}</CardDescription>
                                 </div>
                                 <span className="font-mono font-bold text-lg">₹{item.price}</span>
                             </div>
@@ -202,7 +286,7 @@ export default function OrderPage() {
                         <CardFooter className="p-4 pt-0 mt-auto flex items-center justify-between">
                             <div className="flex items-center gap-1 text-xs text-muted-foreground bg-secondary/50 px-2 py-1 rounded">
                                 <Clock className="w-3 h-3" />
-                                {item.prepTime}m
+                                {item.prep_time}m
                             </div>
                             
                             <div className="flex items-center gap-1">
@@ -258,7 +342,7 @@ export default function OrderPage() {
                             ) : (
                                 <div className="divide-y">
                                     {Object.entries(cart).map(([id, qty]) => {
-                                        const item = MENU_ITEMS.find(i => i.id === Number(id))
+                                        const item = menuItems.find(i => i.id === Number(id))
                                         if (!item || qty === 0) return null
                                         return (
                                             <div key={id} className="p-4 flex flex-col gap-2 hover:bg-secondary/20 transition-colors">
