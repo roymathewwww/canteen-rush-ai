@@ -83,10 +83,6 @@ export default function OrderPage() {
   
   // Submit Handler
   const handlePlaceOrder = async () => {
-<<<<<<< HEAD
-=======
-    alert("Payment Done!")
->>>>>>> 07f012ae898f6a716bf9f6c2ced5daff6392518d
     
     // Default values if not provided
     const finalStudentId = studentId || "DEMO_USER"
