@@ -60,7 +60,7 @@ export default function VendorDashboard() {
                 // Handle different structures (mock vs real)
                 const name = oi.menu_items?.name || oi.menu_item?.name || "Unknown Item"
                 // If quantity > 1, repeat the name or show (x2)
-                return Array(oi.quantity).fill(name) as string[]
+                return Array(oi.quantity || 1).fill(name) as string[]
             }).flat()
 
             const uniqueItems = Array.from(new Set(items)) // Dedup for display if needed, or just list them
@@ -91,13 +91,25 @@ export default function VendorDashboard() {
     // Try to load any local storage mock orders first to combine them? 
     // Or just use them if Supabase fails.
 
-    // Check if Supabase client is available or if we are already in mock mode
+    // Check if Supabase client is available or if we are already in mock mode (persist mock mode)
     if (!supabase || isMockMode) {
         // Load mocks
         console.log("Loading mock orders (Supabase missing/mock mode)")
-        const localMocks = Object.keys(localStorage)
-            .filter(k => k.startsWith('mock_order_'))
-            .map(k => JSON.parse(localStorage.getItem(k) || '{}'))
+        let localMocks: any[] = []
+        try {
+             localMocks = Object.keys(localStorage)
+                .filter(k => k.startsWith('mock_order_'))
+                .map(k => {
+                    try {
+                        return JSON.parse(localStorage.getItem(k) || '{}')
+                    } catch (e) {
+                         return null
+                    }
+                })
+                .filter(o => o !== null)
+        } catch (e) {
+            console.warn("LocalStorage access failed", e)
+        }
         
         const allMocks = [...MOCK_ORDERS, ...localMocks].filter(o => o.status !== 'completed' && o.status !== 'cancelled')
         setOrders(formatOrders(allMocks) as any) // Type casting for ease
@@ -134,9 +146,17 @@ export default function VendorDashboard() {
           console.error("Error fetching orders:", error)
           // Fallback to mocks on error
           console.warn("Falling back to mock data due to fetch error.")
-          const localMocks = Object.keys(localStorage)
-            .filter(k => k.startsWith('mock_order_'))
-            .map(k => JSON.parse(localStorage.getItem(k) || '{}'))
+          let localMocks: any[] = []
+          try {
+                localMocks = Object.keys(localStorage)
+                .filter(k => k.startsWith('mock_order_'))
+                .map(k => {
+                    try {
+                        return JSON.parse(localStorage.getItem(k) || '{}')
+                    } catch { return null }
+                })
+                .filter(o => o !== null)
+          } catch {}
         
           const allMocks = [...MOCK_ORDERS, ...localMocks].filter(o => o.status !== 'completed' && o.status !== 'cancelled')
           setOrders(formatOrders(allMocks) as any)
