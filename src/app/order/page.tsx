@@ -103,16 +103,20 @@ export default function OrderPage() {
         // Save mock order to localStorage so status page can retrieve it (optional, but good for demo)
         const mockOrder = {
              id: mockOrderId,
+             created_at: new Date().toISOString(), // Important for Vendor sorting
              student_id: finalStudentId,
-             status: 'preparing',
+             status: 'ordered', // Status starts as ORDERED, not preparing
              predicted_pickup: pickupTime,
              order_items: Object.entries(cart).map(([id, qty]) => {
                  const item = menuItems.find(i => i.id === Number(id))
-                 return { menu_items: { name: item?.name || "Unknown" }, quantity: qty }
+                 return { menu_items: { name: item?.name || "Unknown", complexity: item?.complexity || "low" }, quantity: qty }
              })
         }
         localStorage.setItem(`mock_order_${mockOrderId}`, JSON.stringify(mockOrder))
         
+        // Broadcast event for other tabs (Vendor Dashboard)
+        window.dispatchEvent(new Event('storage'))
+
         router.push(`/order/status/${mockOrderId}`)
         return
     }
