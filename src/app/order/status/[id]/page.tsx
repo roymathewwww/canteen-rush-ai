@@ -70,7 +70,7 @@ export default function OrderStatusPage({ params }: { params: Promise<{ id: stri
         })
         .subscribe()
     
-    return () => { supabase.removeChannel(channel) }
+    return () => { supabase?.removeChannel(channel) }
   }, [id])
 
   if (loading) return <div className="h-screen flex items-center justify-center">Loading Status...</div>

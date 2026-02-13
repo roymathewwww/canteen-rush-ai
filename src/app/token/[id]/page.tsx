@@ -49,7 +49,7 @@ export default function TokenPage({ params }: { params: Promise<{ id: string }> 
         })
         .subscribe()
     
-    return () => { supabase.removeChannel(channel) }
+    return () => { supabase?.removeChannel(channel) }
 
   }, [id])
 

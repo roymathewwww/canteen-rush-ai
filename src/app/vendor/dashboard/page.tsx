@@ -108,7 +108,7 @@ export default function VendorDashboard() {
         .subscribe()
 
       return () => {
-          supabase.removeChannel(channel)
+          supabase?.removeChannel(channel)
       }
   }, [fetchOrders])
 
