@@ -47,6 +47,19 @@ CREATE TABLE public.order_items (
     price_at_time NUMERIC NOT NULL
 );
 
+-- DISABLE RLS SO PUBLIC CAN INSERT (Crucial for Demo)
+ALTER TABLE public.menu_items ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Enable read access for all users" ON "public"."menu_items" AS PERMISSIVE FOR SELECT TO public USING (true);
+
+ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Enable insert for all users" ON "public"."orders" AS PERMISSIVE FOR INSERT TO public WITH CHECK (true);
+CREATE POLICY "Enable read for all users" ON "public"."orders" AS PERMISSIVE FOR SELECT TO public USING (true);
+CREATE POLICY "Enable update for all users" ON "public"."orders" AS PERMISSIVE FOR UPDATE TO public USING (true);
+
+ALTER TABLE public.order_items ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Enable insert for all users" ON "public"."order_items" AS PERMISSIVE FOR INSERT TO public WITH CHECK (true);
+CREATE POLICY "Enable read for all users" ON "public"."order_items" AS PERMISSIVE FOR SELECT TO public USING (true);
+
 -- Turn on Realtime for Orders (Important for Vendor Dashboard)
 alter publication supabase_realtime add table orders;
 

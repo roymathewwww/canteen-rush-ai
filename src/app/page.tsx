@@ -33,7 +33,7 @@ export default function StudentHome() {
             </nav>
 
             <div className="flex items-center gap-3 bg-secondary/50 px-3 py-1.5 rounded-full border border-secondary">
-                <span className="text-sm font-mono text-foreground font-semibold">10:30 AM</span>
+                <span className="text-sm font-mono text-foreground font-semibold">Live System</span>
                 <div className="h-2 w-2 rounded-full bg-success animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
             </div>
         </div>

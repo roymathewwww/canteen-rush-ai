@@ -1,53 +1,76 @@
 "use client"
 
 import { use, useState, useEffect } from "react"
-import Link from "next/link" // Added missing import
-import { CheckCircle2, AlertCircle, MapPin, ChevronDown, ChevronUp } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
+import Link from "next/link"
+import { CheckCircle2, AlertCircle, MapPin } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
-import { TimeDisplay } from "@/components/ui/time-display"
+import { Card, CardHeader } from "@/components/ui/card"
+import { supabase } from "@/lib/supabase"
 
 export default function TokenPage({ params }: { params: Promise<{ id: string }> }) {
   const unwrappedParams = use(params);
-  const [status, setStatus] = useState<"preparing" | "ready" | "collected">("preparing")
-  const [countdown, setCountdown] = useState(480) // seconds (8 mins)
+  const id = unwrappedParams.id
+  
+  const [order, setOrder] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const timer = setInterval(() => {
-      setCountdown((prev) => {
-        if (prev <= 0) return 0
-        return prev - 1
-      })
-    }, 1000)
-    return () => clearInterval(timer)
-  }, [])
+    if (!id) return
 
-  const formatCountdown = (seconds: number) => {
-    const m = Math.floor(seconds / 60)
-    const s = seconds % 60
-    return `${m}:${s.toString().padStart(2, '0')}`
-  }
+    const fetchOrder = async () => {
+        if (!supabase) {
+             setOrder({
+                id: id,
+                status: "preparing",
+                predicted_pickup: "12:00"
+             })
+             setLoading(false)
+             return
+        }
 
-  // Toggle state for demo
-  const toggleStatus = () => {
-    if (status === "preparing") setStatus("ready")
-    else if (status === "ready") setStatus("collected")
-    else setStatus("preparing")
-  }
+        const { data, error } = await supabase
+            .from("orders")
+            .select("*")
+            .eq("id", id)
+            .single()
+        
+        if (data) setOrder(data)
+        setLoading(false)
+    }
+    fetchOrder()
+
+    if (!supabase) return
+    
+    // Realtime
+    const channel = supabase
+        .channel(`token-${id}`)
+        .on("postgres_changes", { event: "UPDATE", schema: "public", table: "orders", filter: `id=eq.${id}` }, (payload) => {
+             setOrder((prev: any) => ({ ...prev, ...payload.new }))
+        })
+        .subscribe()
+    
+    return () => { supabase.removeChannel(channel) }
+
+  }, [id])
+
+  if (loading) return <div className="h-screen flex items-center justify-center bg-zinc-900 text-white">Loading Token...</div>
+  if (!order) return <div className="h-screen flex items-center justify-center bg-zinc-900 text-white">Token Invalid</div>
+
+  const status = order.status
+  const isReady = status === "ready" || status === "completed"
 
   return (
-    <div className="min-h-screen bg-zinc-900 text-zinc-50 flex flex-col max-w-md mx-auto relative overflow-hidden">
+    <div className="min-h-screen bg-zinc-900 text-zinc-50 flex flex-col max-w-md mx-auto relative overflow-hidden font-sans">
       {/* Background Pulse for Ready State */}
-      {status === "ready" && (
-        <div className="absolute inset-0 bg-success/20 animate-pulse pointer-events-none" />
+      {isReady && (
+        <div className="absolute inset-0 bg-green-500/20 animate-pulse pointer-events-none" />
       )}
 
       {/* Header */}
       <header className="p-4 flex justify-between items-center z-10">
-        <span className="font-mono text-xs text-zinc-400">ORDER #{unwrappedParams.id.slice(0, 6).toUpperCase()}</span>
-        <Badge variant={status === "ready" ? "success" : "warning"}>
-            {status === "ready" ? "READY FOR PICKUP" : "COOKING"}
+        <span className="font-mono text-xs text-zinc-400">ORDER #{order.id.slice(0, 8).toUpperCase()}</span>
+        <Badge variant={isReady ? "success" : "warning"}>
+            {isReady ? "READY" : status.toUpperCase()}
         </Badge>
       </header>
 
@@ -55,22 +78,24 @@ export default function TokenPage({ params }: { params: Promise<{ id: string }> 
         <div className="mb-8 items-center flex flex-col">
             <span className="text-zinc-400 text-sm font-bold uppercase tracking-widest mb-4">Your Token</span>
             <div className="bg-white text-black p-8 rounded-lg mb-4 shadow-[0_0_50px_-12px_rgba(255,255,255,0.5)]">
-                <span className="font-mono text-7xl font-bold tracking-tighter">A-42</span>
+                <span className="font-mono text-7xl font-bold tracking-tighter">
+                    {order.id.split("-")[0].toUpperCase().slice(0, 4)}
+                </span>
             </div>
             
-            {status === "preparing" && (
+            {!isReady && order.predicted_pickup && (
                 <div className="space-y-2">
-                     <span className="text-zinc-500 text-xs uppercase tracking-widest">Estimated Ready In</span>
+                     <span className="text-zinc-500 text-xs uppercase tracking-widest">Estimated Pickup</span>
                      <div className="font-mono text-5xl font-bold tabular-nums">
-                        {formatCountdown(countdown)}
+                        {order.predicted_pickup}
                      </div>
                 </div>
             )}
 
-            {status === "ready" && (
+            {isReady && (
                 <div className="animate-bounce mt-4">
-                     <span className="text-success text-xl font-bold uppercase tracking-widest">
-                        Counter 3
+                     <span className="text-green-400 text-xl font-bold uppercase tracking-widest">
+                        Counter 1
                      </span>
                 </div>
             )}
@@ -81,8 +106,8 @@ export default function TokenPage({ params }: { params: Promise<{ id: string }> 
             <CardHeader className="py-4">
                 <div className="flex items-center justify-between">
                     <div className="flex flex-col text-left">
-                        <span className="text-xs text-zinc-400">Pickup At</span>
-                        <span className="text-xl font-mono font-bold">10:45 AM</span>
+                        <span className="text-xs text-zinc-400">Status</span>
+                        <span className="text-xl font-mono font-bold capitalize">{status}</span>
                     </div>
                     <div className="h-8 w-px bg-zinc-700" />
                     <div className="flex flex-col text-right">
@@ -96,31 +121,7 @@ export default function TokenPage({ params }: { params: Promise<{ id: string }> 
             </CardHeader>
         </Card>
 
-        {/* Behavior Nudge */}
-        {status === "preparing" && (
-            <div className="mt-8 flex gap-2 items-start opacity-70">
-                <AlertCircle className="h-4 w-4 text-blue-400 mt-0.5" />
-                <p className="text-xs text-left max-w-[250px] leading-relaxed">
-                    Arriving early increases congestion at the counter. 
-                    We'll notify you exactly when it's ready.
-                </p>
-            </div>
-        )}
-        
-        {/* Button to simulate state change for Demo */}
-        <Button variant="ghost" className="mt-12 text-zinc-600 text-xs" onClick={toggleStatus}>
-             Dev: Toggle State
-        </Button>
-
       </main>
-      
-      <footer className="p-4 z-10">
-        <Link href="/">
-            <Button variant="secondary" className="w-full">
-                Close
-            </Button>
-        </Link>
-      </footer>
     </div>
   )
 }

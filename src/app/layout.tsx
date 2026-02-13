@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Manrope, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
+import { CurrentTime } from "@/components/CurrentTime";
 
 const manrope = Manrope({
   variable: "--font-sans",
@@ -29,6 +30,7 @@ export default function RootLayout({
       <body
         className={`${manrope.variable} ${jetbrainsMono.variable} antialiased`}
       >
+        <CurrentTime />
         {children}
       </body>
     </html>

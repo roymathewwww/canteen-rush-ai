@@ -6,7 +6,7 @@ import { Check, Clock, AlertTriangle, Coffee, MoreHorizontal, Moon, Sun, Home, U
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { TimeDisplay } from "@/components/ui/time-display"
+import { CurrentTime } from "@/components/CurrentTime"
 import { cn } from "@/lib/utils"
 // Import Supabase
 import { supabase } from "@/lib/supabase"
@@ -184,7 +184,7 @@ export default function VendorDashboard() {
                 </div>
                 <div className="h-8 w-px bg-border" />
                 <span className="font-mono text-xl text-foreground font-bold">
-                    <TimeDisplay />
+                    <CurrentTime fixed={false} />
                 </span>
             </div>
         </header>

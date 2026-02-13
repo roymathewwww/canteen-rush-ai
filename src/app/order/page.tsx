@@ -131,9 +131,9 @@ export default function OrderPage() {
         console.log("Order placed successfully:", orderData.id)
         router.push(`/order/status/${orderData.id}`) // Use actual ID from DB
 
-    } catch (error) {
+    } catch (error: any) {
         console.error("Error placing order:", error)
-        alert("Failed to place order. Please try again.")
+        alert(`Failed to place order: ${error.message || "Unknown error"}. Please check console for details.`)
     }
   }
 
@@ -221,8 +221,10 @@ export default function OrderPage() {
                     </Button>
                 </Link>
                 <div className="flex items-center gap-3 bg-secondary/50 px-3 py-1.5 rounded-full border border-secondary">
-                    <span className="text-sm font-mono text-foreground font-semibold">10:30 AM</span>
-                    <div className="h-2 w-2 rounded-full bg-success animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
+                    <div className="flex items-center gap-2">
+                        <div className="h-2 w-2 rounded-full bg-success animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
+                        <span className="text-xs font-medium text-muted-foreground">Kitchen Open</span>
+                    </div>
                 </div>
             </div>
         </div>

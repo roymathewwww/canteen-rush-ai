@@ -45,8 +45,8 @@ export default function AnalyticsPage() {
                     
                     <div className="p-4 bg-background rounded-lg border shadow-sm">
                         <div className="text-sm text-muted-foreground uppercase font-bold mb-1">Queue Load</div>
-                        <div className="text-2xl font-mono font-bold">6 orders</div>
-                        <div className="text-xs text-muted-foreground mt-1">/ 2 chefs</div>
+                        <div className="text-2xl font-mono font-bold">Dynamic</div>
+                        <div className="text-xs text-muted-foreground mt-1">Updates live</div>
                     </div>
 
                     <div className="flex items-center justify-center text-muted-foreground font-bold">×</div>
