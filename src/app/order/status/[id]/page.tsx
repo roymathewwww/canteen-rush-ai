@@ -20,6 +20,20 @@ export default function OrderStatusPage({ params }: { params: Promise<{ id: stri
     if (!id) return
 
     const fetchOrder = async () => {
+        // Check LocalStorage for Mock Order (Demo Mode)
+        if (id.startsWith('MOCK-')) {
+            try {
+                const saved = localStorage.getItem(`mock_order_${id}`)
+                if (saved) {
+                    setOrder(JSON.parse(saved))
+                    setLoading(false)
+                    return
+                }
+            } catch (e) {
+                console.warn("Failed to load mock order", e)
+            }
+        }
+
         // Fallback for mock environment if supabase is missing
         if (!supabase) {
             // Simulate finding an order for demo purposes

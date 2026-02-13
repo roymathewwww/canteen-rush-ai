@@ -36,6 +36,7 @@ export default function OrderPage() {
   const [pickupTime, setPickupTime] = React.useState("10:45")
   const [activeCategory, setActiveCategory] = React.useState("All")
   const [searchQuery, setSearchQuery] = React.useState("")
+  const [isMockMode, setIsMockMode] = React.useState(false) // Track if we are using mock data
   
   // Checkout State
   const [showCheckout, setShowCheckout] = React.useState(false)
@@ -48,6 +49,7 @@ export default function OrderPage() {
       // Mock Data Fallback
       if (!supabase) {
         setMenuItems(MOCK_MENU_ITEMS)
+        setIsMockMode(true)
         setLoading(false)
         return
       }
@@ -60,12 +62,18 @@ export default function OrderPage() {
         if (error) {
             console.error('Error fetching menu:', error)
             setMenuItems(MOCK_MENU_ITEMS) // Fallback on error
-        } else if (data) {
+            setIsMockMode(true)
+        } else if (data && data.length > 0) {
             setMenuItems(data)
+        } else {
+             // Data is empty
+             setMenuItems(MOCK_MENU_ITEMS)
+             setIsMockMode(true)
         }
       } catch (err) {
           console.error('Unexpected error:', err)
           setMenuItems(MOCK_MENU_ITEMS)
+          setIsMockMode(true)
       } finally {
           setLoading(false)
       }
@@ -87,9 +95,25 @@ export default function OrderPage() {
     // Default values if not provided
     const finalStudentId = studentId || "DEMO_USER"
 
-    // Check Supabase connection
-    if (!supabase) {
-        alert("Database connection failed. Please check your configuration.")
+    // Mock Mode Handler
+    if (isMockMode || !supabase) {
+        const mockOrderId = "MOCK-" + Math.floor(Math.random() * 10000)
+        console.log("Mock Mode: Order placed successfully:", mockOrderId)
+        
+        // Save mock order to localStorage so status page can retrieve it (optional, but good for demo)
+        const mockOrder = {
+             id: mockOrderId,
+             student_id: finalStudentId,
+             status: 'preparing',
+             predicted_pickup: pickupTime,
+             order_items: Object.entries(cart).map(([id, qty]) => {
+                 const item = menuItems.find(i => i.id === Number(id))
+                 return { menu_items: { name: item?.name || "Unknown" }, quantity: qty }
+             })
+        }
+        localStorage.setItem(`mock_order_${mockOrderId}`, JSON.stringify(mockOrder))
+        
+        router.push(`/order/status/${mockOrderId}`)
         return
     }
 
@@ -114,19 +138,23 @@ export default function OrderPage() {
         // 2. Create Order Items
         const orderItems = Object.entries(cart).map(([id, qty]) => {
             const item = menuItems.find(i => i.id === Number(id))
+             // Ensure item exists before accessing properties
+             if (!item) return null
             return {
                 order_id: orderData.id,
                 menu_item_id: Number(id),
                 quantity: qty,
-                price_at_time: item?.price || 0
+                price_at_time: item.price
             }
-        })
+        }).filter(item => item !== null) // Filter out any nulls
 
-        const { error: itemsError } = await supabase
-            .from('order_items')
-            .insert(orderItems)
+        if (orderItems.length > 0) {
+            const { error: itemsError } = await supabase
+                .from('order_items')
+                .insert(orderItems)
 
-        if (itemsError) throw itemsError
+            if (itemsError) throw itemsError
+        }
         
         console.log("Order placed successfully:", orderData.id)
         router.push(`/order/status/${orderData.id}`) // Use actual ID from DB
