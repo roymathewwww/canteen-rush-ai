@@ -92,3 +92,9 @@ Restart your Next.js development server to load the new environment variables:
 ```bash
 npm run dev
 ```
+
+## 5. Deployment (Vercel)
+If you deploy to Vercel, `.env.local` is **NOT** uploaded. You must add the environment variables manually:
+1. Go to your **Vercel Dashboard** > **Settings** > **Environment Variables**.
+2. Add `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
+3. Redeploy the application.
