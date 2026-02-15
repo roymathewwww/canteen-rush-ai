@@ -91,10 +91,10 @@ export default function VendorDashboard() {
     // Try to load any local storage mock orders first to combine them? 
     // Or just use them if Supabase fails.
 
-    // Check if Supabase client is available or if we are already in mock mode (persist mock mode)
-    if (!supabase || isMockMode) {
+    // Check if Supabase client is available (ALWAYS try real data if available)
+    if (!supabase) {
         // Load mocks
-        console.log("Loading mock orders (Supabase missing/mock mode)")
+        console.log("Loading mock orders (Supabase missing)")
         let localMocks: any[] = []
         try {
              localMocks = Object.keys(localStorage)
@@ -120,6 +120,9 @@ export default function VendorDashboard() {
 
       try {
           setErrorMsg(null)
+          // Recovery from mock mode if real backend starts working
+          if (isMockMode) setIsMockMode(false)
+          
           const { data, error } = await supabase
             .from('orders')
             .select(`
@@ -186,6 +189,26 @@ export default function VendorDashboard() {
           supabase?.removeChannel(channel)
       }
   }, [fetchOrders])
+
+  // Mock Mode live sync (across tabs)
+  React.useEffect(() => {
+    const handleStorageChange = () => {
+        if (isMockMode || !supabase) {
+            console.log("Mock Storage updated, refreshing...")
+            fetchOrders()
+            // Force redraw of mock components if needed
+        }
+    }
+    
+    window.addEventListener('storage', handleStorageChange)
+    // Custom event to handle updates within same window context if needed
+    window.addEventListener('local-order-update', handleStorageChange)
+    
+    return () => {
+        window.removeEventListener('storage', handleStorageChange)
+        window.removeEventListener('local-order-update', handleStorageChange)
+    }
+  }, [isMockMode, fetchOrders])
 
   const moveOrder = async (id: string, newState: string) => {
     // Find order

@@ -18,6 +18,18 @@ export default function TokenPage({ params }: { params: Promise<{ id: string }> 
     if (!id) return
 
     const fetchOrder = async () => {
+        // Quick Check for mock (Demo Mode)
+        if (id.toString().startsWith('MOCK-')) {
+            try {
+                const saved = localStorage.getItem(`mock_order_${id}`)
+                if (saved) {
+                    setOrder(JSON.parse(saved))
+                    setLoading(false)
+                    return
+                }
+            } catch {}
+        }
+
         if (!supabase) {
              setOrder({
                 id: id,
@@ -28,14 +40,26 @@ export default function TokenPage({ params }: { params: Promise<{ id: string }> 
              return
         }
 
-        const { data, error } = await supabase
-            .from("orders")
-            .select("*")
-            .eq("id", id)
-            .single()
-        
-        if (data) setOrder(data)
-        setLoading(false)
+        try {
+            const { data, error } = await supabase
+                .from("orders")
+                .select("*")
+                .eq("id", id)
+                .single()
+            
+            if (error) throw error
+            if (data) setOrder(data)
+        } catch (err) {
+             console.warn("Failed to fetch order token, falling back to local storage if available", err)
+             try {
+                const saved = localStorage.getItem(`mock_order_${id}`)
+                if (saved) {
+                    setOrder(JSON.parse(saved))
+                }
+             } catch {}
+        } finally {
+            setLoading(false)
+        }
     }
     fetchOrder()
 

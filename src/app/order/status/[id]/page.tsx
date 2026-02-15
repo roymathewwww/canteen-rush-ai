@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { ArrowLeft, Check, QrCode, AlertTriangle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -9,6 +10,7 @@ import { Badge } from "@/components/ui/badge"
 import { supabase } from "@/lib/supabase"
 
 export default function OrderStatusPage({ params }: { params: Promise<{ id: string }> }) {
+  const router = useRouter()
   const resolvedParams = React.use(params)
   const id = resolvedParams.id
 
@@ -64,6 +66,9 @@ export default function OrderStatusPage({ params }: { params: Promise<{ id: stri
         
         if (data) {
             setOrder(data)
+            if (data.status === 'ready') {
+                router.push(`/token/${id}`)
+            }
         } else {
              console.error("Order not found or error:", error)
         }
@@ -80,11 +85,32 @@ export default function OrderStatusPage({ params }: { params: Promise<{ id: stri
         .channel(`order-${id}`)
         .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders', filter: `id=eq.${id}` }, (payload) => {
             console.log("Order update:", payload)
-             setOrder((prev: any) => ({ ...prev, ...payload.new }))
+             const newOrder = payload.new as any
+             setOrder((prev: any) => ({ ...prev, ...newOrder }))
+
+             if (newOrder.status === 'ready') {
+                 router.push(`/token/${id}`)
+             }
         })
         .subscribe()
-    
-    return () => { supabase?.removeChannel(channel) }
+
+    // Mock Mode Subscription
+    const handleStorageChange = () => {
+         try {
+            const saved = localStorage.getItem(`mock_order_${id}`)
+            if (saved) {
+                const updated = JSON.parse(saved)
+                setOrder(updated)
+                if (updated.status === 'ready') router.push(`/token/${id}`)
+            }
+         } catch {}
+    }
+    window.addEventListener('storage', handleStorageChange)
+
+    return () => { 
+        supabase?.removeChannel(channel)
+        window.removeEventListener('storage', handleStorageChange)
+    }
   }, [id])
 
   if (loading) return <div className="h-screen flex items-center justify-center">Loading Status...</div>
